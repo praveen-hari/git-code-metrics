@@ -4,7 +4,8 @@ import { fetchRepoData } from '../api/gitea';
 import type { RepoData } from '../api/gitea';
 import { computeEngineerStats } from '../utils/scoring';
 import { loadSettings, getDateRangeStart } from '../store/settings';
-import type { TeamStats, EngineerStats, GiteaReview } from '../types';
+import type { TeamStats, EngineerStats, GiteaReview, PrType } from '../types';
+import { EMPTY_PR_BY_TYPE } from '../types';
 
 // Stable query key — serialised so React Query deduplicates identical requests
 // across multiple components mounting simultaneously (100s of users on same page)
@@ -51,6 +52,7 @@ export function useAnalytics() {
         settings.scoringWeights,
         since,
         until,
+        settings.csAiLabel || 'cs_used',
       );
 
       const totalCommits = engineers.reduce((s, e) => s + e.totalCommits, 0);
@@ -69,6 +71,14 @@ export function useAnalytics() {
         if (count > maxCommits) { maxCommits = count; mostActiveDay = day; }
       }
 
+      const totalCsAiUsage = engineers.reduce((s, e) => s + e.csAiUsageCount, 0);
+      const teamPrsByType = engineers.reduce((acc, e) => {
+        for (const [type, count] of Object.entries(e.prsByType) as [PrType, number][]) {
+          acc[type] = (acc[type] ?? 0) + count;
+        }
+        return acc;
+      }, { ...EMPTY_PR_BY_TYPE });
+
       return {
         engineers,
         totalCommits,
@@ -77,6 +87,8 @@ export function useAnalytics() {
         activePeriod: { start: since.toISOString(), end: until.toISOString() },
         mostActiveDay,
         topContributor: engineers[0] ?? null,
+        totalCsAiUsage,
+        teamPrsByType,
       };
     },
   });

@@ -7,8 +7,38 @@ import type {
   EngineerStats,
   GiteaUser,
   AppSettings,
+  PrType,
 } from '../types';
+import { PR_TYPE_LABELS_MAP, EMPTY_PR_BY_TYPE } from '../types';
 import type { RepoData } from '../api/gitea';
+
+// ── PR Classification ────────────────────────────────────────────────────────
+
+/**
+ * Classify a PR into a type by checking its labels first, then falling back
+ * to title heuristics. Returns the first matched type or 'other'.
+ */
+export function classifyPR(pr: GiteaPullRequest): PrType {
+  const labelNames = pr.labels.map((l) => l.name.toLowerCase().trim());
+  for (const [type, keywords] of Object.entries(PR_TYPE_LABELS_MAP) as [PrType, string[]][]) {
+    if (type === 'other') continue;
+    if (labelNames.some((l) => keywords.some((k) => l === k || l.startsWith(k)))) return type;
+  }
+  // Title-based heuristic when no matching label found
+  const t = pr.title.toLowerCase();
+  if (/^(feat|feature|add |new )/i.test(t)) return 'feature';
+  if (/^(fix|bug|hotfix|patch)/i.test(t))   return 'bug';
+  if (/^(docs?|readme|changelog)/i.test(t)) return 'docs';
+  if (/^(refactor|cleanup|clean up)/i.test(t)) return 'refactor';
+  if (/^(test|spec|coverage)/i.test(t))      return 'test';
+  if (/^(chore|bump|deps?|ci:|build:)/i.test(t)) return 'chore';
+  return 'other';
+}
+
+/** Returns true for auto-generated merge commits that don't reflect real work */
+function isMergeCommit(message: string): boolean {
+  return /^Merge (branch|pull request|remote|tag)/i.test(message.trim());
+}
 
 function getUserKey(user: GiteaUser | null, authorName: string): string {
   return user?.login ?? authorName.toLowerCase().replace(/\s+/g, '.');
@@ -20,6 +50,7 @@ export function computeEngineerStats(
   weights: AppSettings['scoringWeights'],
   sinceDate: Date,
   untilDate: Date,
+  csAiLabel = 'cs_used',
 ): EngineerStats[] {
   // Collect all unique users
   const userMap = new Map<string, GiteaUser | null>();
@@ -32,6 +63,8 @@ export function computeEngineerStats(
     const repoKey = `${owner}/${repo}`;
 
     for (const commit of commits) {
+      // Skip auto-generated merge commits — they inflate count without real work
+      if (isMergeCommit(commit.commit.message)) continue;
       const key = getUserKey(commit.author, commit.commit.author.name);
       if (!userMap.has(key)) userMap.set(key, commit.author);
       if (!commitsByUser.has(key)) commitsByUser.set(key, []);
@@ -72,6 +105,16 @@ export function computeEngineerStats(
     const totalDeletions = commits.reduce((s, c) => s + (c.stats?.deletions ?? 0), 0);
     const mergedPRs = prs.filter((p) => p.merged);
     const openPRs = prs.filter((p) => p.state === 'open');
+
+    // PR type breakdown
+    const prsByType: Record<PrType, number> = { ...EMPTY_PR_BY_TYPE };
+    let csAiUsageCount = 0;
+    for (const pr of prs) {
+      prsByType[classifyPR(pr)]++;
+      if (pr.labels.some((l) => l.name.toLowerCase() === csAiLabel.toLowerCase())) {
+        csAiUsageCount++;
+      }
+    }
 
     // Avg PR merge time
     const mergeTimes = mergedPRs
@@ -141,7 +184,8 @@ export function computeEngineerStats(
       prs.length * weights.prsCreated +
       mergedPRs.length * weights.prsMerged +
       reviews.length * weights.reviewsGiven +
-      activeDays * weights.activeDays;
+      activeDays * weights.activeDays +
+      csAiUsageCount * (weights.csAiUsage ?? 6);
 
     const ghostUser: GiteaUser = {
       id: -1,
@@ -168,6 +212,8 @@ export function computeEngineerStats(
       dailyActivity,
       weeklyCommits,
       reposContributed: Array.from(reposByUser.get(login) ?? []),
+      csAiUsageCount,
+      prsByType,
       score,
       rank: 0,
     });

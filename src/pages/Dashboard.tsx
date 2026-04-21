@@ -1,4 +1,4 @@
-import { GitCommit, GitMerge, GitPullRequest, Users, Calendar, Zap } from 'lucide-react';
+import { GitCommit, GitMerge, GitPullRequest, Users, Calendar, Zap, Bot } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useTeamActivity } from '../hooks/useAnalytics';
 import { StatCard } from '../components/StatCard';
@@ -7,6 +7,8 @@ import { Leaderboard } from '../components/Leaderboard';
 import { ActivityChart } from '../components/ActivityChart';
 import { StatCardSkeleton, ChartSkeleton, LeaderboardSkeleton } from '../components/Skeleton';
 import { loadSettings } from '../store/settings';
+import type { PrType } from '../types';
+import { PR_TYPE_COLORS } from '../types';
 
 export function Dashboard() {
   const { data, teamActivity, isLoading, error } = useTeamActivity();
@@ -64,6 +66,9 @@ export function Dashboard() {
   if (!data) return null;
 
   const mergeRate = data.totalPRs > 0 ? Math.round((data.totalMergedPRs / data.totalPRs) * 100) : 0;
+  const csAiRate = data.totalPRs > 0 ? Math.round((data.totalCsAiUsage / data.totalPRs) * 100) : 0;
+  const PR_TYPE_ORDER: PrType[] = ['feature', 'bug', 'refactor', 'chore', 'docs', 'test', 'other'];
+  const totalTypedPRs = Object.values(data.teamPrsByType).reduce((a, b) => a + b, 0) || 1;
 
   return (
     <div className="p-6 space-y-6">
@@ -83,7 +88,7 @@ export function Dashboard() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
         <StatCard title="Total Commits" value={data.totalCommits} icon={GitCommit} iconColor="text-sky-400" />
         <StatCard title="Total PRs" value={data.totalPRs} icon={GitPullRequest} iconColor="text-violet-400" />
         <StatCard title="Merged PRs" value={data.totalMergedPRs} icon={GitMerge} iconColor="text-emerald-400" />
@@ -96,6 +101,48 @@ export function Dashboard() {
           icon={Zap}
           iconColor="text-pink-400"
         />
+        <StatCard
+          title="AI PRs"
+          value={data.totalCsAiUsage}
+          subtitle={`${csAiRate}% of all PRs`}
+          icon={Bot}
+          iconColor="text-cyan-400"
+        />
+      </div>
+
+      {/* PR Type Breakdown — stacked bar */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-slate-300 mb-3">Team PR Type Distribution</h3>
+        {/* Stacked bar */}
+        <div className="flex rounded-full overflow-hidden h-4 mb-3">
+          {PR_TYPE_ORDER.map((type) => {
+            const count = data.teamPrsByType[type];
+            if (count === 0) return null;
+            const pct = (count / totalTypedPRs) * 100;
+            return (
+              <div
+                key={type}
+                className="h-full transition-all"
+                style={{ width: `${pct}%`, backgroundColor: PR_TYPE_COLORS[type] }}
+                title={`${type}: ${count} (${Math.round(pct)}%)`}
+              />
+            );
+          })}
+        </div>
+        {/* Legend */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+          {PR_TYPE_ORDER.filter((t) => data.teamPrsByType[t] > 0).map((type) => {
+            const count = data.teamPrsByType[type];
+            const pct = Math.round((count / totalTypedPRs) * 100);
+            return (
+              <div key={type} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: PR_TYPE_COLORS[type] }} />
+                <span className="text-xs text-slate-400 capitalize">{type}</span>
+                <span className="text-xs text-slate-600">{count} ({pct}%)</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Team Activity Chart */}

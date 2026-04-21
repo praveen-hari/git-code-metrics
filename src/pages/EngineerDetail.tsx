@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, GitCommit, GitPullRequest, GitMerge, Star, Flame, Code2, Clock, Trophy,
+  ArrowLeft, GitCommit, GitPullRequest, GitMerge, Star, Flame, Code2, Clock, Trophy, Bot,
 } from 'lucide-react';
 import { useEngineerDetail } from '../hooks/useAnalytics';
 import { PageSkeleton } from '../components/Skeleton';
@@ -8,6 +8,9 @@ import { StatCard } from '../components/StatCard';
 import { CommitHeatmap } from '../components/CommitHeatmap';
 import { ActivityChart, ChurnChart } from '../components/ActivityChart';
 import { formatMergeTime, getScoreColor } from '../utils/scoring';
+import { loadSettings } from '../store/settings';
+import type { PrType } from '../types';
+import { PR_TYPE_COLORS } from '../types';
 
 export function EngineerDetail() {
   const { username } = useParams<{ username: string }>();
@@ -29,6 +32,10 @@ export function EngineerDetail() {
   }
 
   const scoreColor = getScoreColor(eng.rank, teamSize);
+  const settings = loadSettings();
+  const csLabel = settings.csAiLabel || 'cs_used';
+  const totalClassifiedPRs = Object.values(eng.prsByType).reduce((a, b) => a + b, 0) || 1;
+  const PR_TYPE_ORDER: PrType[] = ['feature', 'bug', 'refactor', 'chore', 'docs', 'test', 'other'];
 
   return (
     <div className="p-6 space-y-6">
@@ -75,7 +82,7 @@ export function EngineerDetail() {
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <StatCard title="Commits" value={eng.totalCommits} icon={GitCommit} iconColor="text-sky-400" />
         <StatCard title="PRs Created" value={eng.totalPRs} icon={GitPullRequest} iconColor="text-violet-400" />
         <StatCard title="PRs Merged" value={eng.mergedPRs} subtitle={`Open: ${eng.openPRs}`} icon={GitMerge} iconColor="text-emerald-400" />
@@ -87,6 +94,78 @@ export function EngineerDetail() {
           icon={Clock}
           iconColor="text-pink-400"
         />
+        <StatCard
+          title="AI PRs"
+          value={eng.csAiUsageCount}
+          subtitle={eng.csAiUsageCount > 0 ? `label: ${csLabel}` : 'None yet'}
+          icon={Bot}
+          iconColor="text-cyan-400"
+        />
+      </div>
+
+      {/* PR Type Breakdown + AI Usage */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* PR type distribution */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4">PR Type Breakdown</h3>
+          <div className="space-y-2.5">
+            {PR_TYPE_ORDER.filter((t) => eng.prsByType[t] > 0).map((type) => {
+              const count = eng.prsByType[type];
+              const pct = Math.round((count / totalClassifiedPRs) * 100);
+              return (
+                <div key={type}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium capitalize" style={{ color: PR_TYPE_COLORS[type] }}>{type}</span>
+                    <span className="text-xs text-slate-400">{count} ({pct}%)</span>
+                  </div>
+                  <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: PR_TYPE_COLORS[type] }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {eng.totalPRs === 0 && (
+              <p className="text-xs text-slate-500">No PRs in this period.</p>
+            )}
+          </div>
+        </div>
+
+        {/* AI IDE Usage */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Bot size={16} className="text-cyan-400" />
+            <h3 className="text-sm font-semibold text-slate-300">Code Studio AI Usage</h3>
+          </div>
+          {eng.csAiUsageCount > 0 ? (
+            <>
+              <div className="flex items-end gap-3 mb-4">
+                <span className="text-5xl font-black text-cyan-400">{eng.csAiUsageCount}</span>
+                <div className="pb-1">
+                  <p className="text-sm text-slate-400">PRs raised with AI assistance</p>
+                  <p className="text-xs text-slate-600">label: <code className="text-slate-400">{csLabel}</code></p>
+                </div>
+              </div>
+              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-cyan-400 rounded-full"
+                  style={{ width: `${Math.min(100, Math.round((eng.csAiUsageCount / Math.max(eng.totalPRs, 1)) * 100))}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 mt-1.5">
+                {Math.round((eng.csAiUsageCount / Math.max(eng.totalPRs, 1)) * 100)}% of all PRs used Code Studio
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-28 text-center gap-2">
+              <Bot size={28} className="text-slate-600" />
+              <p className="text-sm text-slate-500">No AI-assisted PRs yet</p>
+              <p className="text-xs text-slate-600">Add <code className="text-slate-500">{csLabel}</code> label to a PR after using Code Studio</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Streaks */}

@@ -181,6 +181,30 @@ export function Settings() {
         )}
       </section>
 
+      {/* AI IDE Tracking */}
+      <section className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-200">AI IDE Tracking</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            When engineers raise a PR using Code Studio (or any AI IDE), they apply a label to signal it.
+            Engineers who adopt AI tooling get a bonus in their productivity score.
+          </p>
+        </div>
+        <div>
+          <label className={labelCls}>AI-Assisted PR Label</label>
+          <input
+            type="text"
+            value={settings.csAiLabel}
+            onChange={(e) => update('csAiLabel', e.target.value)}
+            placeholder="cs_used"
+            className={inputCls}
+          />
+          <p className="text-xs text-slate-600 mt-1">
+            Any PR carrying this label is counted as AI-assisted. Default: <code className="text-slate-400">cs_used</code>
+          </p>
+        </div>
+      </section>
+
       {/* Date Range */}
       <section className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
         <h2 className="text-sm font-semibold text-slate-200">Analysis Period</h2>
@@ -212,10 +236,20 @@ export function Settings() {
           </p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {(Object.entries(settings.scoringWeights) as [keyof AppSettings['scoringWeights'], number][]).map(([key, val]) => (
+          {(Object.entries(settings.scoringWeights) as [keyof AppSettings['scoringWeights'], number][]).map(([key, val]) => {
+            const weightLabels: Record<string, string> = {
+              commits: 'Commits',
+              additions: 'Lines Added',
+              prsCreated: 'PRs Created',
+              prsMerged: 'PRs Merged',
+              reviewsGiven: 'Reviews Given',
+              activeDays: 'Active Days',
+              csAiUsage: '🤖 AI-Assisted PRs',
+            };
+            return (
             <div key={key}>
               <label className={labelCls}>
-                {key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
+                {weightLabels[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -230,7 +264,8 @@ export function Settings() {
                 <span className="text-xs text-sky-400 w-10 text-right font-mono">{val}</span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
