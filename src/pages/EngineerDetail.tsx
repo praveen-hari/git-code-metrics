@@ -34,7 +34,9 @@ export function EngineerDetail() {
   const scoreColor = getScoreColor(eng.rank, teamSize);
   const settings = loadSettings();
   const csLabel = settings.csAiLabel || 'cs_used';
-  const totalClassifiedPRs = Object.values(eng.prsByType).reduce((a, b) => a + b, 0) || 1;
+  const prsByType = eng.prsByType ?? { feature: 0, bug: 0, chore: 0, docs: 0, refactor: 0, test: 0, other: 0 };
+  const csAiUsageCount = eng.csAiUsageCount ?? 0;
+  const totalClassifiedPRs = Object.values(prsByType).reduce((a, b) => a + b, 0) || 1;
   const PR_TYPE_ORDER: PrType[] = ['feature', 'bug', 'refactor', 'chore', 'docs', 'test', 'other'];
 
   return (
@@ -96,8 +98,8 @@ export function EngineerDetail() {
         />
         <StatCard
           title="AI PRs"
-          value={eng.csAiUsageCount}
-          subtitle={eng.csAiUsageCount > 0 ? `label: ${csLabel}` : 'None yet'}
+          value={csAiUsageCount}
+          subtitle={csAiUsageCount > 0 ? `label: ${csLabel}` : 'None yet'}
           icon={Bot}
           iconColor="text-cyan-400"
         />
@@ -109,8 +111,8 @@ export function EngineerDetail() {
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
           <h3 className="text-sm font-semibold text-slate-300 mb-4">PR Type Breakdown</h3>
           <div className="space-y-2.5">
-            {PR_TYPE_ORDER.filter((t) => eng.prsByType[t] > 0).map((type) => {
-              const count = eng.prsByType[type];
+            {PR_TYPE_ORDER.filter((t) => prsByType[t] > 0).map((type) => {
+              const count = prsByType[type];
               const pct = Math.round((count / totalClassifiedPRs) * 100);
               return (
                 <div key={type}>
@@ -139,10 +141,10 @@ export function EngineerDetail() {
             <Bot size={16} className="text-cyan-400" />
             <h3 className="text-sm font-semibold text-slate-300">Code Studio AI Usage</h3>
           </div>
-          {eng.csAiUsageCount > 0 ? (
+          {csAiUsageCount > 0 ? (
             <>
               <div className="flex items-end gap-3 mb-4">
-                <span className="text-5xl font-black text-cyan-400">{eng.csAiUsageCount}</span>
+                <span className="text-5xl font-black text-cyan-400">{csAiUsageCount}</span>
                 <div className="pb-1">
                   <p className="text-sm text-slate-400">PRs raised with AI assistance</p>
                   <p className="text-xs text-slate-600">label: <code className="text-slate-400">{csLabel}</code></p>
@@ -151,11 +153,11 @@ export function EngineerDetail() {
               <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-cyan-400 rounded-full"
-                  style={{ width: `${Math.min(100, Math.round((eng.csAiUsageCount / Math.max(eng.totalPRs, 1)) * 100))}%` }}
+                  style={{ width: `${Math.min(100, Math.round((csAiUsageCount / Math.max(eng.totalPRs, 1)) * 100))}%` }}
                 />
               </div>
               <p className="text-xs text-slate-500 mt-1.5">
-                {Math.round((eng.csAiUsageCount / Math.max(eng.totalPRs, 1)) * 100)}% of all PRs used Code Studio
+                {Math.round((csAiUsageCount / Math.max(eng.totalPRs, 1)) * 100)}% of all PRs used Code Studio
               </p>
             </>
           ) : (

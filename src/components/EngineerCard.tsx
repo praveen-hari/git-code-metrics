@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { GitCommit, GitPullRequest, Star, Flame } from 'lucide-react';
 import type { EngineerStats } from '../types';
 import { cn } from '../utils/cn';
+import { useTrend } from '../hooks/useAnalytics';
 
 interface EngineerCardProps {
   stats: EngineerStats;
@@ -17,6 +18,7 @@ const RANK_BADGE: Record<number, { label: string; color: string }> = {
 export function EngineerCard({ stats, totalEngineers }: EngineerCardProps) {
   const pct = Math.round((stats.rank / totalEngineers) * 100);
   const rankBadge = RANK_BADGE[stats.rank];
+  const trend = useTrend(stats.user.login);
 
   return (
     <Link
@@ -46,8 +48,19 @@ export function EngineerCard({ stats, totalEngineers }: EngineerCardProps) {
           <p className="text-xs text-slate-400 truncate">@{stats.user.login}</p>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-sky-400">{Math.round(stats.score)}</p>
-          <p className="text-xs text-slate-500">score</p>
+          <div className="flex items-center justify-end gap-1">
+            <p className="text-lg font-bold text-sky-400">{Math.round(stats.score)}</p>
+            {trend.hasPrev && (
+              <span className="text-sm font-bold" style={{ color: trend.color }} title={`${trend.scoreDelta > 0 ? '+' : ''}${Math.round(trend.scoreDelta)} pts vs last week`}>
+                {trend.arrow}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">
+            {trend.hasPrev && trend.scoreDelta !== 0
+              ? `${trend.scoreDelta > 0 ? '+' : ''}${Math.round(trend.scoreDelta)} pts`
+              : 'score'}
+          </p>
         </div>
       </div>
 

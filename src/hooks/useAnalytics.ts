@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { fetchRepoData } from '../api/gitea';
 import type { RepoData } from '../api/gitea';
 import { computeEngineerStats } from '../utils/scoring';
 import { loadSettings, getDateRangeStart } from '../store/settings';
 import type { TeamStats, EngineerStats, GiteaReview, PrType } from '../types';
 import { EMPTY_PR_BY_TYPE } from '../types';
+import { saveSnapshot, loadLatestSnapshot } from '../store/db';
+import { saveWeeklySnapshots, getTrend } from '../store/history';
+import type { TrendResult } from '../store/history';
 
 // Stable query key — serialised so React Query deduplicates identical requests
 // across multiple components mounting simultaneously (100s of users on same page)
@@ -17,12 +20,23 @@ export function useAnalytics() {
   const settings = loadSettings();
   const isConfigured = !!(settings.giteaUrl && settings.token && settings.repos.length > 0);
 
+  // Load IndexedDB snapshot as placeholder so UI renders immediately on revisit
+  const [placeholder, setPlaceholder] = useState<TeamStats | undefined>(undefined);
+  useEffect(() => {
+    if (!isConfigured) return;
+    loadLatestSnapshot(settings.giteaUrl, settings.repos, settings.dateRange)
+      .then(setPlaceholder)
+      .catch(() => {/* non-fatal */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.giteaUrl, settings.repos.join(','), settings.dateRange, isConfigured]);
+
   return useQuery<TeamStats, Error>({
     queryKey: buildQueryKey(settings.giteaUrl, settings.repos, settings.dateRange),
     enabled: isConfigured,
-    staleTime: 5 * 60 * 1000,   // serve cached copy for 5 min — no spinner on revisit
-    gcTime: 60 * 60 * 1000,      // keep in memory for 1 hour
-    refetchOnMount: false,        // don't re-fetch if cached data is still fresh
+    staleTime: 5 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    refetchOnMount: false,
+    placeholderData: placeholder,
     queryFn: async ({ signal }) => {
       const since = getDateRangeStart(settings.dateRange);
       const until = new Date();
@@ -79,7 +93,7 @@ export function useAnalytics() {
         return acc;
       }, { ...EMPTY_PR_BY_TYPE });
 
-      return {
+      const result: TeamStats = {
         engineers,
         totalCommits,
         totalPRs,
@@ -90,8 +104,32 @@ export function useAnalytics() {
         totalCsAiUsage,
         teamPrsByType,
       };
+
+      // Persist to IndexedDB (non-blocking — never throws to avoid failing the query)
+      Promise.all([
+        saveSnapshot(settings.giteaUrl, settings.repos, settings.dateRange, result),
+        saveWeeklySnapshots(settings.giteaUrl, engineers),
+      ]).catch(() => {/* non-fatal */});
+
+      return result;
     },
   });
+}
+
+/** Hook that returns trend info for a single engineer (async, resolves from IndexedDB). */
+export function useTrend(login: string): TrendResult {
+  const settings = loadSettings();
+  const noTrend: TrendResult = { scoreDelta: 0, rankDelta: 0, arrow: '→', color: '#64748b', hasPrev: false };
+  const [trend, setTrend] = useState<TrendResult>(noTrend);
+
+  useEffect(() => {
+    if (!settings.giteaUrl || !login) return;
+    getTrend(settings.giteaUrl, login)
+      .then(setTrend)
+      .catch(() => {/* non-fatal */});
+  }, [settings.giteaUrl, login]);
+
+  return trend;
 }
 
 /** Derived hook — individual engineer detail, memoised from team data (no extra API call) */

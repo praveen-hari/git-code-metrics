@@ -1,4 +1,4 @@
-import { GitCommit, GitMerge, GitPullRequest, Users, Calendar, Zap, Bot } from 'lucide-react';
+import { GitCommit, GitMerge, GitPullRequest, Users, Calendar, Zap, Bot, Download } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useTeamActivity } from '../hooks/useAnalytics';
 import { StatCard } from '../components/StatCard';
@@ -66,9 +66,44 @@ export function Dashboard() {
   if (!data) return null;
 
   const mergeRate = data.totalPRs > 0 ? Math.round((data.totalMergedPRs / data.totalPRs) * 100) : 0;
-  const csAiRate = data.totalPRs > 0 ? Math.round((data.totalCsAiUsage / data.totalPRs) * 100) : 0;
+
+  function downloadJSON() {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gitea-metrics-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadCSV() {
+    const headers = ['Login', 'Full Name', 'Score', 'Rank', 'Commits', 'Additions', 'Deletions',
+      'PRs Created', 'PRs Merged', 'Reviews', 'Active Days', 'Streak', 'Longest Streak',
+      'Avg PR Merge Time (h)', 'AI PRs', 'Repos'];
+    const rows = data.engineers.map((e) => [
+      e.user.login, e.user.full_name, Math.round(e.score), e.rank,
+      e.totalCommits, e.totalAdditions, e.totalDeletions,
+      e.totalPRs, e.mergedPRs, e.reviewsGiven, e.activeDays,
+      e.commitStreak, e.longestStreak,
+      e.avgPRMergeTimeHours > 0 ? e.avgPRMergeTimeHours.toFixed(1) : 0,
+      e.csAiUsageCount ?? 0,
+      e.reposContributed.join(';'),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gitea-metrics-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  const totalCsAiUsage = data.totalCsAiUsage ?? 0;
+  const csAiRate = data.totalPRs > 0 ? Math.round((totalCsAiUsage / data.totalPRs) * 100) : 0;
   const PR_TYPE_ORDER: PrType[] = ['feature', 'bug', 'refactor', 'chore', 'docs', 'test', 'other'];
-  const totalTypedPRs = Object.values(data.teamPrsByType).reduce((a, b) => a + b, 0) || 1;
+  const teamPrsByType = data.teamPrsByType ?? { feature: 0, bug: 0, chore: 0, docs: 0, refactor: 0, test: 0, other: 0 };
+  const totalTypedPRs = Object.values(teamPrsByType).reduce((a, b) => a + b, 0) || 1;
 
   return (
     <div className="p-6 space-y-6">
@@ -80,10 +115,28 @@ export function Dashboard() {
             {settings.repos.join(', ')} · Last {settings.dateRange}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5">
-          <Calendar size={13} />
-          {data.activePeriod.start && format(parseISO(data.activePeriod.start), 'MMM d')} –{' '}
-          {data.activePeriod.end && format(parseISO(data.activePeriod.end), 'MMM d, yyyy')}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5">
+            <Calendar size={13} />
+            {data.activePeriod.start && format(parseISO(data.activePeriod.start), 'MMM d')} –{' '}
+            {data.activePeriod.end && format(parseISO(data.activePeriod.end), 'MMM d, yyyy')}
+          </div>
+          <button
+            onClick={downloadCSV}
+            title="Export CSV"
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            <Download size={13} />
+            CSV
+          </button>
+          <button
+            onClick={downloadJSON}
+            title="Export JSON"
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            <Download size={13} />
+            JSON
+          </button>
         </div>
       </div>
 
@@ -103,7 +156,7 @@ export function Dashboard() {
         />
         <StatCard
           title="AI PRs"
-          value={data.totalCsAiUsage}
+          value={totalCsAiUsage}
           subtitle={`${csAiRate}% of all PRs`}
           icon={Bot}
           iconColor="text-cyan-400"
@@ -116,7 +169,7 @@ export function Dashboard() {
         {/* Stacked bar */}
         <div className="flex rounded-full overflow-hidden h-4 mb-3">
           {PR_TYPE_ORDER.map((type) => {
-            const count = data.teamPrsByType[type];
+            const count = teamPrsByType[type];
             if (count === 0) return null;
             const pct = (count / totalTypedPRs) * 100;
             return (
@@ -131,8 +184,8 @@ export function Dashboard() {
         </div>
         {/* Legend */}
         <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-          {PR_TYPE_ORDER.filter((t) => data.teamPrsByType[t] > 0).map((type) => {
-            const count = data.teamPrsByType[type];
+          {PR_TYPE_ORDER.filter((t) => teamPrsByType[t] > 0).map((type) => {
+            const count = teamPrsByType[type];
             const pct = Math.round((count / totalTypedPRs) * 100);
             return (
               <div key={type} className="flex items-center gap-1.5">

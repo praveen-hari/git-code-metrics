@@ -7,6 +7,8 @@ import { Layout } from './components/Layout';
 import { PageSkeleton } from './components/Skeleton';
 import { loadSettings } from './store/settings';
 import { initClient } from './api/gitea';
+import { pruneOldSnapshots } from './store/db';
+import { pruneOldHistory } from './store/history';
 
 // ── Lazy-load all pages — each becomes its own JS chunk ──────────────────────
 const Dashboard     = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -30,7 +32,7 @@ const queryClient = new QueryClient({
 // Persist to localStorage — data survives refresh, no reload spinner
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: 'gitea-metrics-cache',
+  key: 'gitea-metrics-cache-v2',
   throttleTime: 3000,  // write at most once every 3s
 });
 
@@ -38,6 +40,9 @@ const persister = createSyncStoragePersister({
 const saved = loadSettings();
 if (saved.giteaUrl && saved.token) {
   void initClient(saved.giteaUrl, saved.token);
+  // Prune stale IndexedDB data in the background (non-blocking)
+  void pruneOldSnapshots(90);
+  void pruneOldHistory(saved.giteaUrl, 12);
 }
 
 function App() {
