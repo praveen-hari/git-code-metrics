@@ -72,6 +72,12 @@ function giteaDynamicProxy(): import('vite').Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), giteaDynamicProxy()],
+  server: {
+    // Explicitly configure HMR so the browser client connects to the right port
+    hmr: {
+      port: 5173,
+    },
+  },
   build: {
     // Target modern browsers — smaller output, faster parse
     target: 'es2020',

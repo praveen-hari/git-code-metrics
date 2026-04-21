@@ -65,10 +65,11 @@ export function Dashboard() {
 
   if (!data) return null;
 
-  const mergeRate = data.totalPRs > 0 ? Math.round((data.totalMergedPRs / data.totalPRs) * 100) : 0;
+  const teamData = data;
+  const mergeRate = teamData.totalPRs > 0 ? Math.round((teamData.totalMergedPRs / teamData.totalPRs) * 100) : 0;
 
   function downloadJSON() {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(teamData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -81,7 +82,7 @@ export function Dashboard() {
     const headers = ['Login', 'Full Name', 'Score', 'Rank', 'Commits', 'Additions', 'Deletions',
       'PRs Created', 'PRs Merged', 'Reviews', 'Active Days', 'Streak', 'Longest Streak',
       'Avg PR Merge Time (h)', 'AI PRs', 'Repos'];
-    const rows = data.engineers.map((e) => [
+    const rows = teamData.engineers.map((e) => [
       e.user.login, e.user.full_name, Math.round(e.score), e.rank,
       e.totalCommits, e.totalAdditions, e.totalDeletions,
       e.totalPRs, e.mergedPRs, e.reviewsGiven, e.activeDays,

@@ -55,7 +55,39 @@ Open `http://localhost:5173` and go to **Settings** to configure:
 npm run build        # TypeScript check + Vite bundle
 ```
 
-Output goes to `dist/`. Serve with any static host.
+Output goes to `dist/`. Serve with any static static host (nginx, Caddy, etc.).
+
+> **Important — production CORS proxy**
+>
+> The Vite dev-server proxy (`/gitea-api/*`) only exists during development.  
+> In production you must expose a reverse-proxy route that forwards `/gitea-api/*`
+> to your Gitea instance, otherwise API calls will be blocked by the browser's
+> same-origin policy.
+>
+> **nginx example** (place inside your `server {}` block):
+>
+> ```nginx
+> location /gitea-api/ {
+>     proxy_pass         https://your-gitea-host/;
+>     proxy_set_header   Host              your-gitea-host;
+>     proxy_set_header   Authorization     $http_authorization;
+>     proxy_set_header   X-Real-IP         $remote_addr;
+>     proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+>     proxy_ssl_server_name on;
+> }
+> ```
+>
+> **Caddy example** (place inside your site block):
+>
+> ```caddy
+> handle /gitea-api/* {
+>     uri strip_prefix /gitea-api
+>     reverse_proxy https://your-gitea-host {
+>         header_up Host {upstream_hostport}
+>         header_up Authorization {http.request.header.Authorization}
+>     }
+> }
+> ```
 
 ---
 

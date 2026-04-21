@@ -12,8 +12,11 @@ import { createStore, get, set, del, keys } from 'idb-keyval';
 import type { TeamStats } from '../types';
 
 // ── Store handles ────────────────────────────────────────────────────────────
-export const snapshotStore = createStore('gitea-metrics', 'snapshots');
-export const historyStore  = createStore('gitea-metrics', 'history');
+// Each store uses its own DB name so idb-keyval's onupgradeneeded fires
+// independently for each store (sharing one DB name causes the second store
+// to never be created because the DB is already at version 1).
+export const snapshotStore = createStore('gitea-metrics-snapshots', 'snapshots');
+export const historyStore  = createStore('gitea-metrics-history',   'history');
 
 // ── Snapshot helpers ─────────────────────────────────────────────────────────
 

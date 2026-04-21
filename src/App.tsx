@@ -30,9 +30,10 @@ const queryClient = new QueryClient({
 });
 
 // Persist to localStorage — data survives refresh, no reload spinner
+// Key bumped to v3: EngineerStats now includes `prs` field; old cache must be dropped.
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: 'gitea-metrics-cache-v2',
+  key: 'gitea-metrics-cache-v3',
   throttleTime: 3000,  // write at most once every 3s
 });
 

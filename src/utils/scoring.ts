@@ -5,6 +5,7 @@ import type {
   GiteaReview,
   DailyActivity,
   EngineerStats,
+  EngineerPREntry,
   GiteaUser,
   AppSettings,
   PrType,
@@ -55,7 +56,7 @@ export function computeEngineerStats(
   // Collect all unique users
   const userMap = new Map<string, GiteaUser | null>();
   const commitsByUser = new Map<string, GiteaCommit[]>();
-  const prsByUser = new Map<string, GiteaPullRequest[]>();
+  const prsByUser = new Map<string, EngineerPREntry[]>();
   const reviewsByUser = new Map<string, GiteaReview[]>();
   const reposByUser = new Map<string, Set<string>>();
 
@@ -77,7 +78,7 @@ export function computeEngineerStats(
       const key = pr.user.login;
       if (!userMap.has(key)) userMap.set(key, pr.user);
       if (!prsByUser.has(key)) prsByUser.set(key, []);
-      prsByUser.get(key)!.push(pr);
+      prsByUser.get(key)!.push({ pr, repoKey });
       if (!reposByUser.has(key)) reposByUser.set(key, new Set());
       reposByUser.get(key)!.add(repoKey);
     }
@@ -98,7 +99,8 @@ export function computeEngineerStats(
 
   for (const [login, user] of Array.from(userMap.entries())) {
     const commits = commitsByUser.get(login) ?? [];
-    const prs = prsByUser.get(login) ?? [];
+    const prEntries = prsByUser.get(login) ?? [];
+    const prs = prEntries.map((e) => e.pr);
     const reviews = reviewsByUser.get(login) ?? [];
 
     const totalAdditions = commits.reduce((s, c) => s + (c.stats?.additions ?? 0), 0);
@@ -214,6 +216,7 @@ export function computeEngineerStats(
       reposContributed: Array.from(reposByUser.get(login) ?? []),
       csAiUsageCount,
       prsByType,
+      prs: prEntries,
       score,
       rank: 0,
     });

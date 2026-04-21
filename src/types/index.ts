@@ -80,6 +80,12 @@ export interface GiteaReview {
   submitted_at: string;
 }
 
+/** A PR with the source repo attached, stored per-engineer */
+export interface EngineerPREntry {
+  pr: GiteaPullRequest;
+  repoKey: string; // "owner/repo"
+}
+
 /** PR classification derived from labels + title heuristics */
 export type PrType = 'feature' | 'bug' | 'chore' | 'docs' | 'refactor' | 'test' | 'other';
 
@@ -136,6 +142,8 @@ export interface EngineerStats {
   csAiUsageCount: number;
   /** PR count broken down by classified type */
   prsByType: Record<PrType, number>;
+  /** Full PR objects for this engineer (created within the selected date range) */
+  prs: EngineerPREntry[];
   score: number;
   rank: number;
 }
