@@ -72,6 +72,9 @@ function giteaDynamicProxy(): import('vite').Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), giteaDynamicProxy()],
+  // In GitHub Actions VITE_BASE_PATH=/git-code-metrics/ is injected by the workflow.
+  // Locally it stays '/' so dev and preview work without any path prefix.
+  base: process.env.VITE_BASE_PATH ?? '/',
   server: {
     // Explicitly configure HMR so the browser client connects to the right port
     hmr: {
